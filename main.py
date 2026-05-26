@@ -561,6 +561,9 @@ class JarvisLive:
         self._loop           = None
         self._text_send_queue: queue.Queue = queue.Queue()  # thread-safe bridge
 
+        # Reconnect signal (e.g. profile switch)
+        self._reconnect_requested = threading.Event()
+
     def speak(self, text: str):
         """Thread-safe speak — any thread can call this."""
         if not self._loop or not self.session:
@@ -576,6 +579,9 @@ class JarvisLive:
     def send_text(self, text: str):
         """Called from Tkinter thread to send text input to the session."""
         self._text_send_queue.put(text)
+
+    def request_reconnect(self):
+        self._reconnect_requested.set()
 
     def _build_config(self) -> types.LiveConnectConfig:
         from datetime import datetime
@@ -964,6 +970,15 @@ class JarvisLive:
                     tg.create_task(self._receive_audio())
                     tg.create_task(self._play_audio())
                     tg.create_task(self._poll_text_input())
+
+                    async def _watch_reconnect():
+                        while True:
+                            await asyncio.sleep(0.1)
+                            if self._reconnect_requested.is_set():
+                                self._reconnect_requested.clear()
+                                raise RuntimeError("Reconnect requested")
+
+                    tg.create_task(_watch_reconnect())
 
             except Exception as e:
                 print(f"[JARVIS] ⚠️ Error: {e}")
