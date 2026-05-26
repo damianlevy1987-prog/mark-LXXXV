@@ -4,7 +4,8 @@ import os
 def test_service_name_by_secret_type(monkeypatch):
     from core import secrets_store
 
-    assert secrets_store._service_name("gemini") == "mark-lxxxv:gemini"
+    monkeypatch.setattr(secrets_store, "get_active_profile_id", lambda: 2)
+    assert secrets_store._service_name("gemini") == "mark-lxxxv:2:gemini"
 
 
 def test_import_from_env_once_imports_when_missing(monkeypatch):
@@ -25,7 +26,7 @@ def test_import_from_env_once_imports_when_missing(monkeypatch):
     imported = secrets_store.import_from_env_once(["GEMINI_API_KEY"])
 
     assert imported == {"GEMINI_API_KEY": "IMPORTED"}
-    assert calls[0][0] == "mark-lxxxv:gemini"
+    assert calls[0][0] == f"mark-lxxxv:{secrets_store.get_active_profile_id()}:gemini"
     assert calls[0][1] == "GEMINI_API_KEY"
 
 

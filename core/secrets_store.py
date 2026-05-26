@@ -4,6 +4,8 @@ import os
 
 import keyring
 
+from core.profile_store import get_active_profile_id
+
 
 def _secret_type_for_var(var_name: str) -> str:
     n = var_name.upper()
@@ -25,7 +27,8 @@ def _secret_type_for_var(var_name: str) -> str:
 
 
 def _service_name(secret_type: str) -> str:
-    return f"mark-lxxxv:{secret_type}"
+    pid = get_active_profile_id()
+    return f"mark-lxxxv:{pid}:{secret_type}"
 
 
 def get_secret(var_name: str) -> str | None:
