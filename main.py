@@ -1186,9 +1186,13 @@ def _attach_text_input(ui, jarvis) -> None:
     print("[UI] ⌨ Text input bar ready (Ctrl+T to toggle)")
 
 
+VERSION = "0.1.0"
+
+
 def _parse_args():
     p = argparse.ArgumentParser(add_help=True)
     p.add_argument("--profile", type=int, default=None, help="Active profile id (numeric)")
+    p.add_argument("--version", action="store_true", help="Show version and exit")
     return p.parse_args()
 
 
@@ -1201,6 +1205,11 @@ def main():
         pass
 
     args = _parse_args()
+
+    if args.version:
+        print(f"J.A.R.V.I.S — MARK LXXXV  v{VERSION}")
+        sys.exit(0)
+
     if args.profile is not None:
         from core.profile_store import set_active_profile_id
         set_active_profile_id(args.profile)
