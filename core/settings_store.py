@@ -20,8 +20,20 @@ def get_base_dir() -> Path:
 
 BASE_DIR = get_base_dir()
 CONFIG_DIR = BASE_DIR / "config"
-SETTINGS_FILE = CONFIG_DIR / "settings.json"
+
+# Legacy single-profile locations
+LEGACY_SETTINGS_FILE = CONFIG_DIR / "settings.json"
 LEGACY_FILE = CONFIG_DIR / "api_keys.json"
+
+from core.profile_store import ensure_profile_dirs, get_active_profile_id
+
+
+def _profile_root_dir() -> Path:
+    return ensure_profile_dirs(get_active_profile_id())
+
+
+def _settings_file() -> Path:
+    return _profile_root_dir() / "settings.json"
 
 DEFAULT_STORE: dict[str, Any] = {
     "version": 1,
@@ -123,9 +135,27 @@ def decrypt_secret(obj: dict) -> str | None:
     return None
 
 
+def _migrate_legacy_settings_file_if_needed() -> None:
+    """Move legacy config/settings.json into profile 0 on first run."""
+    try:
+        dst = ensure_profile_dirs(0) / "settings.json"
+        if dst.exists():
+            return
+        if not LEGACY_SETTINGS_FILE.exists():
+            return
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text(LEGACY_SETTINGS_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+        try:
+            LEGACY_SETTINGS_FILE.unlink()
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
 def _import_legacy_if_present(store: dict) -> dict:
-    # Only import when settings file does not exist yet
-    if SETTINGS_FILE.exists() or not LEGACY_FILE.exists():
+    # Only import when profile settings file does not exist yet
+    if _settings_file().exists() or not LEGACY_FILE.exists():
         return store
 
     try:
@@ -195,12 +225,15 @@ def _maybe_migrate_file_gemini_key(store: dict) -> dict:
 
 
 def load_store() -> dict:
-    if not SETTINGS_FILE.exists():
+    _migrate_legacy_settings_file_if_needed()
+
+    settings_file = _settings_file()
+    if not settings_file.exists():
         store = {"version": 1, "settings": {}, "secrets": {}}
         return _import_legacy_if_present(store)
 
     try:
-        raw = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        raw = json.loads(settings_file.read_text(encoding="utf-8"))
     except Exception:
         return dict(DEFAULT_STORE)
 
@@ -219,7 +252,7 @@ def load_store() -> dict:
 
 
 def save_store(store: dict) -> None:
-    _atomic_write_json(SETTINGS_FILE, store)
+    _atomic_write_json(_settings_file(), store)
 
 
 def load_settings() -> dict:
