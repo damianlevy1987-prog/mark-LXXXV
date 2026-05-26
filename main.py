@@ -83,13 +83,25 @@ pya = pyaudio.PyAudio() if _HAVE_PYAUDIO else None
 
 AUTO_IMPORT_VARS = [
     "GEMINI_API_KEY",
+    "VITE_GOOGLE_API_KEY",
     "OPENAI_API_KEY",
+    "OPENAI_API_KEY_2",
     "OPENROUTER_API_KEY",
+    "OPENROUTER_API_KEY_2",
     "GROQ_API_KEY",
+    "MISTRAL_API_KEY",
+    "HF_TOKEN",
     "TELEGRAM_BOT_TOKEN",
     "GITHUB_PAT",
     "GITHUB_CLIENT_SECRET",
     "CAPTCHA_SECRET",
+    "KIMI_API_KEY",
+    "ZHIPUAI_API_KEY",
+    "FIRECRAWL_API_KEY",
+    "FAL_AI_KEY",
+    "CONTABO_CLIENT_SECRET",
+    "HOSTINGER_API_TOKEN",
+    "EMAIL_PASSWORD",
 ]
 
 def _get_api_key() -> str:

@@ -41,6 +41,36 @@ def set_secret(var_name: str, value: str) -> None:
     keyring.set_password(service, var_name, value)
 
 
+PROVIDER_KEY_VARS = {
+    # provider_name -> list of env var names (checked in order)
+    "gemini": ["GEMINI_API_KEY", "VITE_GOOGLE_API_KEY", "VERTEXAI_API_KEY"],
+    "openai": ["OPENAI_API_KEY", "OPENAI_API_KEY_2", "OPENAI_API_KEY_3"],
+    "openrouter": ["OPENROUTER_API_KEY", "OPENROUTER_API_KEY_2"],
+    "groq": ["GROQ_API_KEY"],
+    "mistral": ["MISTRAL_API_KEY"],
+    "hf": ["HF_TOKEN"],
+    "telegram": ["TELEGRAM_BOT_TOKEN"],
+    "github": ["GITHUB_PAT", "GITHUB_CLIENT_SECRET"],
+    "captcha": ["CAPTCHA_SECRET"],
+    "kimi": ["KIMI_API_KEY"],
+    "zhipuai": ["ZHIPUAI_API_KEY"],
+    "firecrawl": ["FIRECRAWL_API_KEY"],
+    "fal": ["FAL_AI_KEY"],
+    "contabo": ["CONTABO_CLIENT_SECRET"],
+    "hostinger": ["HOSTINGER_API_TOKEN"],
+}
+
+
+def get_provider_key(provider: str) -> str | None:
+    """Look up an API key for a provider across all known env var names."""
+    var_names = PROVIDER_KEY_VARS.get(provider, [])
+    for name in var_names:
+        val = get_secret(name)
+        if val:
+            return val
+    return None
+
+
 def import_from_env_once(var_names: list[str]) -> dict[str, str]:
     imported: dict[str, str] = {}
     for name in var_names:
