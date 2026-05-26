@@ -76,6 +76,9 @@ class JarvisUI:
         self.typing_queue = deque()
         self.is_typing    = False
 
+        # Set by main.py after JarvisLive created (for reconnect button)
+        self._jarvis = None
+
         self._face_pil         = None
         self._has_face         = False
         self._face_scale_cache = None
@@ -520,7 +523,17 @@ class JarvisUI:
         self.status_text = "ONLINE"
         self.write_log("SYS: Systems initialised. JARVIS online.")
 
+    def set_jarvis(self, jarvis):
+        self._jarvis = jarvis
+
     def open_settings_modal(self):
+        from core.profile_store import (
+            create_profile,
+            get_active_profile_id,
+            list_profiles,
+            set_active_profile_id,
+        )
+
         dialog = tk.Toplevel(self.root)
         dialog.title("Settings")
         dialog.configure(bg=C_BG)
@@ -529,6 +542,89 @@ class JarvisUI:
 
         s = load_settings()
 
+        # ── Profile selector ─────────────────────────────────────────
+        active_pid = get_active_profile_id()
+        profiles = sorted(set(list_profiles() + [active_pid]))
+        pid_var = tk.StringVar(value=str(active_pid))
+
+        tk.Label(dialog, text="PROFILE", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
+
+        pid_row = tk.Frame(dialog, bg=C_BG)
+        pid_row.pack(pady=(0, 2))
+
+        pid_menu = tk.OptionMenu(pid_row, pid_var, *[str(p) for p in profiles])
+        pid_menu.configure(
+            bg=C_BG,
+            fg=C_PRI,
+            activebackground=C_DIM,
+            activeforeground=C_PRI,
+            highlightthickness=0,
+            borderwidth=0,
+            font=("Courier", 10),
+        )
+        pid_menu["menu"].configure(bg=C_BG, fg=C_PRI, activebackground=C_DIM, activeforeground=C_PRI)
+        pid_menu.pack(side="left", padx=(0, 10))
+
+        def _refresh_pid_menu():
+            m = pid_menu["menu"]
+            m.delete(0, "end")
+            for p in profiles:
+                m.add_command(label=str(p), command=lambda v=str(p): pid_var.set(v))
+
+        def _new_profile():
+            pid = create_profile()
+            profiles.append(pid)
+            profiles.sort()
+            _refresh_pid_menu()
+            pid_var.set(str(pid))
+
+        tk.Button(
+            pid_row,
+            text="NEW",
+            command=_new_profile,
+            bg=C_BG,
+            fg=C_PRI,
+            activebackground=C_DIM,
+            font=("Courier", 10),
+            borderwidth=0,
+            pady=6,
+            padx=12,
+        ).pack(side="left")
+
+        pending_lbl = tk.Label(
+            dialog,
+            text="Will apply on next reconnect.",
+            fg=C_ACC2,
+            bg=C_BG,
+            font=("Courier", 9),
+        )
+        pending_lbl.pack(pady=(6, 0))
+        pending_lbl.pack_forget()
+
+        def _reconnect_now():
+            if getattr(self, "_jarvis", None):
+                try:
+                    self._jarvis.request_reconnect()
+                except Exception:
+                    pass
+            dialog.destroy()
+
+        reconnect_btn = tk.Button(
+            dialog,
+            text="RECONNECT NOW",
+            command=_reconnect_now,
+            bg=C_BG,
+            fg=C_PRI,
+            activebackground=C_DIM,
+            font=("Courier", 10),
+            borderwidth=0,
+            pady=8,
+            padx=14,
+            state="disabled",
+        )
+        reconnect_btn.pack(pady=(8, 4))
+
+        # ── Existing settings fields ─────────────────────────────────
         tk.Label(dialog, text="BROWSER", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
         browser_var = tk.StringVar(value=str(s.get("browser", "")))
         tk.Entry(
@@ -570,6 +666,8 @@ class JarvisUI:
         ).pack()
 
         def _save():
+            nonlocal active_pid
+
             patch = {}
             b = browser_var.get().strip()
             if b:
@@ -579,9 +677,23 @@ class JarvisUI:
                 patch["camera_index"] = int(ci)
             if patch:
                 save_settings(patch)
+
             k = key_var.get().strip()
             if k:
                 set_gemini_key(k)
+
+            try:
+                new_pid = int(pid_var.get())
+            except Exception:
+                new_pid = active_pid
+
+            if new_pid != active_pid:
+                set_active_profile_id(new_pid)
+                active_pid = new_pid
+                pending_lbl.pack(pady=(6, 0))
+                reconnect_btn.configure(state="normal")
+                return
+
             dialog.destroy()
 
         tk.Button(

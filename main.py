@@ -1242,6 +1242,7 @@ def main():
     # ─────────────────────────────────────────────────────────────────
 
     jarvis = JarvisLive(ui)
+    ui.set_jarvis(jarvis)
 
     def runner():
         # Import once from env -> keyring if keyring empty (keyring is source-of-truth)
