@@ -9,6 +9,8 @@ from ctypes import wintypes
 from pathlib import Path
 from typing import Any
 
+from core import secrets_store
+
 
 def get_base_dir() -> Path:
     if getattr(sys, "frozen", False):
@@ -142,8 +144,51 @@ def _import_legacy_if_present(store: dict) -> dict:
         store["settings"]["browser"] = browser.strip()
     if isinstance(cam, int):
         store["settings"]["camera_index"] = cam
+
     if isinstance(gem, str) and gem.strip():
-        store["secrets"]["gemini_api_key"] = encrypt_secret(gem.strip())
+        # Only write if keyring doesn't already have it
+        if not secrets_store.get_secret("GEMINI_API_KEY"):
+            secrets_store.set_secret("GEMINI_API_KEY", gem.strip())
+
+    save_store(store)
+    return store
+
+
+def _file_secret_to_plain(sec: object) -> str | None:
+    # Old formats we may see in settings.json:
+    # 1) {"enc":"plain","value":"..."}
+    # 2) {"enc":"dpapi","value":"<b64>"}  (only decryptable on Windows)
+    if not isinstance(sec, dict):
+        return None
+    enc = sec.get("enc")
+    val = sec.get("value")
+    if not isinstance(val, str):
+        return None
+    if enc == "plain":
+        return val
+    if enc == "dpapi" and os.name == "nt":
+        return _dpapi_decrypt(val)
+    return None
+
+
+def _maybe_migrate_file_gemini_key(store: dict) -> dict:
+    sec = store.get("secrets", {}).get("gemini_api_key")
+    if not sec:
+        return store
+
+    plain = _file_secret_to_plain(sec)
+
+    # Always remove it from file to enforce keyring-only going forward.
+    try:
+        store.get("secrets", {}).pop("gemini_api_key", None)
+        if not store.get("secrets"):
+            store.pop("secrets", None)
+    except Exception:
+        pass
+
+    # Only write to keyring if keyring empty AND we can decrypt.
+    if plain and not secrets_store.get_secret("GEMINI_API_KEY"):
+        secrets_store.set_secret("GEMINI_API_KEY", plain)
 
     save_store(store)
     return store
@@ -169,7 +214,8 @@ def load_store() -> dict:
     settings = raw.get("settings") if isinstance(raw.get("settings"), dict) else {}
     secrets = raw.get("secrets") if isinstance(raw.get("secrets"), dict) else {}
 
-    return {"version": 1, "settings": settings, "secrets": secrets}
+    store = {"version": 1, "settings": settings, "secrets": secrets}
+    return _maybe_migrate_file_gemini_key(store)
 
 
 def save_store(store: dict) -> None:
@@ -190,16 +236,11 @@ def save_settings(patch: dict) -> dict:
 
 
 def get_gemini_key() -> str | None:
-    sec = load_store().get("secrets", {}).get("gemini_api_key")
-    if isinstance(sec, dict):
-        return decrypt_secret(sec)
-    return None
+    return secrets_store.get_secret("GEMINI_API_KEY")
 
 
 def set_gemini_key(key: str) -> None:
-    store = load_store()
-    store.setdefault("secrets", {})["gemini_api_key"] = encrypt_secret(key.strip())
-    save_store(store)
+    secrets_store.set_secret("GEMINI_API_KEY", key.strip())
 
 
 def is_configured() -> bool:
