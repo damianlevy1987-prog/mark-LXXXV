@@ -21,6 +21,7 @@ __pycache__/
 # ─── Virtual Environments ─────────────────────────────────────
 venv/
 .venv/
+.venv_test/
 env/
 .env/
 ENV/
