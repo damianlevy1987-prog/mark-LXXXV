@@ -91,10 +91,6 @@ AUTO_IMPORT_VARS = [
     "CAPTCHA_SECRET",
 ]
 
-# Import once from env -> keyring if keyring empty (keyring is source-of-truth)
-import_from_env_once(AUTO_IMPORT_VARS)
-
-
 def _get_api_key() -> str:
     key = get_gemini_key()
     if not key:
@@ -1190,6 +1186,10 @@ def main():
     jarvis = JarvisLive(ui)
 
     def runner():
+        # Import once from env -> keyring if keyring empty (keyring is source-of-truth)
+        # Runs after profile selection so secrets are scoped correctly.
+        import_from_env_once(AUTO_IMPORT_VARS)
+
         ui.wait_for_api_key()
 
         # Browser selector — shown once, skipped if preference already saved

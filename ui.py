@@ -100,6 +100,9 @@ class JarvisUI:
         self.log_text.tag_config("ai",  foreground=C_PRI)
         self.log_text.tag_config("sys", foreground=C_ACC2)
 
+        # Choose profile at startup (modal)
+        self.choose_profile()
+
         self._api_key_ready = self._api_keys_exist()
         if not self._api_key_ready:
             self._show_setup_ui()
@@ -352,6 +355,100 @@ class JarvisUI:
     def stop_speaking(self):
         self.speaking    = False
         self.status_text = "ONLINE"
+
+    def choose_profile(self):
+        """Startup profile picker. Sets active profile id in config/profile_state.json."""
+        try:
+            from core.profile_store import (
+                create_profile,
+                get_active_profile_id,
+                list_profiles,
+                set_active_profile_id,
+            )
+        except Exception:
+            return
+
+        profiles = list_profiles()
+        if 0 not in profiles:
+            profiles = [0] + profiles
+        active = get_active_profile_id()
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Select Profile")
+        dialog.configure(bg=C_BG)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+
+        tk.Label(dialog, text="◈  SELECT PROFILE",
+                 fg=C_PRI, bg=C_BG, font=("Courier", 12, "bold")).pack(pady=(16, 6))
+
+        lb = tk.Listbox(dialog, height=min(8, max(3, len(profiles))),
+                        bg="#000d12", fg=C_TEXT, selectbackground=C_DIM, selectforeground=C_TEXT,
+                        font=("Courier", 11), borderwidth=0, highlightthickness=1, highlightbackground=C_MID)
+        lb.pack(padx=18, pady=(0, 10), fill="both")
+
+        for pid in profiles:
+            lb.insert(tk.END, str(pid))
+
+        # preselect active
+        try:
+            idx = profiles.index(active)
+            lb.selection_set(idx)
+            lb.activate(idx)
+            lb.see(idx)
+        except Exception:
+            pass
+
+        btn_row = tk.Frame(dialog, bg=C_BG)
+        btn_row.pack(pady=(0, 14))
+
+        def _new_profile():
+            pid = create_profile()
+            profiles.append(pid)
+            profiles.sort()
+            lb.delete(0, tk.END)
+            for p in profiles:
+                lb.insert(tk.END, str(p))
+            idx = profiles.index(pid)
+            lb.selection_clear(0, tk.END)
+            lb.selection_set(idx)
+            lb.activate(idx)
+            lb.see(idx)
+
+        def _confirm():
+            sel = lb.curselection()
+            pid = int(lb.get(sel[0])) if sel else active
+            set_active_profile_id(pid)
+            dialog.destroy()
+
+        tk.Button(
+            btn_row,
+            text="NEW",
+            command=_new_profile,
+            bg=C_BG,
+            fg=C_PRI,
+            activebackground=C_DIM,
+            font=("Courier", 10),
+            borderwidth=0,
+            padx=14,
+            pady=8,
+        ).pack(side="left", padx=8)
+
+        tk.Button(
+            btn_row,
+            text="CONTINUE",
+            command=_confirm,
+            bg=C_BG,
+            fg=C_PRI,
+            activebackground=C_DIM,
+            font=("Courier", 10),
+            borderwidth=0,
+            padx=14,
+            pady=8,
+        ).pack(side="left", padx=8)
+
+        dialog.protocol("WM_DELETE_WINDOW", _confirm)
+        self.root.wait_window(dialog)
 
     def _api_keys_exist(self):
         return is_configured()
