@@ -17,18 +17,28 @@ import traceback
 
 from pathlib import Path
 
+_HAVE_PYAUDIO = False
 try:
-    import pyaudio
+    import pyaudio  # type: ignore
+    _HAVE_PYAUDIO = True
 except ModuleNotFoundError:
+    pyaudio = None  # type: ignore
+
+_HAVE_SOUNDDEVICE = False
+try:
+    import sounddevice as _sd  # type: ignore
+    _HAVE_SOUNDDEVICE = True
+except ModuleNotFoundError:
+    _sd = None  # type: ignore
+
+if not (_HAVE_PYAUDIO or _HAVE_SOUNDDEVICE):
     print(
-        "Missing dependency: pyaudio.\n\n"
+        "Missing audio backend. Install one of:\n"
+        "  - pyaudio (needs PortAudio dev libs sometimes)\n"
+        "  - sounddevice (recommended; usually wheels)\n\n"
         "Install: pip install -r requirements.txt\n"
-        "If install fails, you likely need PortAudio dev libs:\n"
-        "  - Windows: pip install pipwin && pipwin install pyaudio\n"
-        "  - macOS: brew install portaudio\n"
-        "  - Debian/Ubuntu: sudo apt-get install portaudio19-dev\n"
     )
-    raise
+    raise ModuleNotFoundError("No audio backend (pyaudio/sounddevice)")
 
 from google import genai
 from google.genai import types
@@ -57,13 +67,13 @@ from core.settings_store import get_gemini_key, load_settings, save_settings
 # ─────────────────────────────────────────────────────────────
 
 LIVE_MODEL          = "models/gemini-2.5-flash-native-audio-preview-12-2025"
-FORMAT              = pyaudio.paInt16
+FORMAT              = pyaudio.paInt16 if _HAVE_PYAUDIO else None
 CHANNELS            = 1
 SEND_SAMPLE_RATE    = 16000
 RECEIVE_SAMPLE_RATE = 24000
 CHUNK_SIZE          = 1024
 
-pya = pyaudio.PyAudio()
+pya = pyaudio.PyAudio() if _HAVE_PYAUDIO else None
 
 # ─────────────────────────────────────────────────────────────
 # HELPERS
@@ -734,25 +744,61 @@ class JarvisLive:
 
     async def _listen_audio(self):
         print("[JARVIS] 🎤 Mic started")
-        stream = await asyncio.to_thread(
-            pya.open,
-            format=FORMAT,
+
+        if _HAVE_PYAUDIO:
+            stream = await asyncio.to_thread(
+                pya.open,
+                format=FORMAT,
+                channels=CHANNELS,
+                rate=SEND_SAMPLE_RATE,
+                input=True,
+                frames_per_buffer=CHUNK_SIZE,
+            )
+            try:
+                while True:
+                    data = await asyncio.to_thread(
+                        stream.read, CHUNK_SIZE, exception_on_overflow=False
+                    )
+                    await self.out_queue.put({"data": data, "mime_type": "audio/pcm"})
+            except Exception as e:
+                print(f"[JARVIS] ❌ Mic error: {e}")
+                raise
+            finally:
+                stream.close()
+
+        # Fallback: sounddevice (RawInputStream)
+        q: queue.Queue[bytes] = queue.Queue(maxsize=50)
+
+        def _cb(indata, frames, time_info, status):
+            if status:
+                # avoid spam; still useful for diagnosis
+                print(f"[JARVIS] 🎤 sounddevice status: {status}")
+            try:
+                q.put_nowait(bytes(indata))
+            except Exception:
+                pass
+
+        stream = _sd.RawInputStream(
+            samplerate=SEND_SAMPLE_RATE,
+            blocksize=CHUNK_SIZE,
+            dtype="int16",
             channels=CHANNELS,
-            rate=SEND_SAMPLE_RATE,
-            input=True,
-            frames_per_buffer=CHUNK_SIZE,
+            callback=_cb,
         )
+        stream.start()
         try:
             while True:
-                data = await asyncio.to_thread(
-                    stream.read, CHUNK_SIZE, exception_on_overflow=False
-                )
+                data = await asyncio.to_thread(q.get)
                 await self.out_queue.put({"data": data, "mime_type": "audio/pcm"})
         except Exception as e:
-            print(f"[JARVIS] ❌ Mic error: {e}")
+            print(f"[JARVIS] ❌ Mic error (sounddevice): {e}")
             raise
         finally:
-            stream.close()
+            try:
+                stream.stop()
+                stream.close()
+            except Exception:
+                pass
 
     async def _receive_audio(self):
         print("[JARVIS] 👂 Recv started")
@@ -820,22 +866,62 @@ class JarvisLive:
 
     async def _play_audio(self):
         print("[JARVIS] 🔊 Play started")
-        stream = await asyncio.to_thread(
-            pya.open,
-            format=FORMAT,
+
+        if _HAVE_PYAUDIO:
+            stream = await asyncio.to_thread(
+                pya.open,
+                format=FORMAT,
+                channels=CHANNELS,
+                rate=RECEIVE_SAMPLE_RATE,
+                output=True,
+            )
+            try:
+                while True:
+                    chunk = await self.audio_in_queue.get()
+                    await asyncio.to_thread(stream.write, chunk)
+            except Exception as e:
+                print(f"[JARVIS] ❌ Play error: {e}")
+                raise
+            finally:
+                stream.close()
+
+        # Fallback: sounddevice (RawOutputStream)
+        q: queue.Queue[bytes] = queue.Queue(maxsize=200)
+
+        def _cb(outdata, frames, time_info, status):
+            if status:
+                print(f"[JARVIS] 🔊 sounddevice status: {status}")
+            need = frames * CHANNELS * 2  # int16 bytes
+            try:
+                data = q.get_nowait()
+            except Exception:
+                data = b""
+            if len(data) < need:
+                data = data + (b"\x00" * (need - len(data)))
+            outdata[:] = data[:need]
+
+        stream = _sd.RawOutputStream(
+            samplerate=RECEIVE_SAMPLE_RATE,
+            blocksize=CHUNK_SIZE,
+            dtype="int16",
             channels=CHANNELS,
-            rate=RECEIVE_SAMPLE_RATE,
-            output=True,
+            callback=_cb,
         )
+        stream.start()
         try:
             while True:
                 chunk = await self.audio_in_queue.get()
-                await asyncio.to_thread(stream.write, chunk)
+                # chunk already bytes (pcm)
+                await asyncio.to_thread(q.put, bytes(chunk))
         except Exception as e:
-            print(f"[JARVIS] ❌ Play error: {e}")
+            print(f"[JARVIS] ❌ Play error (sounddevice): {e}")
             raise
         finally:
-            stream.close()
+            try:
+                stream.stop()
+                stream.close()
+            except Exception:
+                pass
 
     async def run(self):
         client = genai.Client(

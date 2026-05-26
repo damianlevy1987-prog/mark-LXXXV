@@ -1,4 +1,5 @@
 pyaudio
+sounddevice
 google-genai
 pillow
 beautifulsoup4
