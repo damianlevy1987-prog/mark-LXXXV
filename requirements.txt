@@ -1,5 +1,6 @@
 # Cross-platform deps
 sounddevice
+keyring
 google-genai
 pillow
 beautifulsoup4
