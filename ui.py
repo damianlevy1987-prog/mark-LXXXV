@@ -414,7 +414,7 @@ class JarvisUI:
         lb.pack(padx=18, pady=(0, 10), fill="both")
 
         for pid in profiles:
-            lb.insert(tk.END, str(pid))
+            lb.insert(tk.END, f"Profile {pid}")
 
         # preselect active
         try:
@@ -434,7 +434,7 @@ class JarvisUI:
             profiles.sort()
             lb.delete(0, tk.END)
             for p in profiles:
-                lb.insert(tk.END, str(p))
+                lb.insert(tk.END, f"Profile {p}")
             idx = profiles.index(pid)
             lb.selection_clear(0, tk.END)
             lb.selection_set(idx)
@@ -443,7 +443,8 @@ class JarvisUI:
 
         def _confirm():
             sel = lb.curselection()
-            pid = int(lb.get(sel[0])) if sel else active
+            lb_txt = lb.get(sel[0]) if sel else f"Profile {active}"
+            pid = int(lb_txt.replace("Profile ", ""))
             set_active_profile_id(pid)
             dialog.destroy()
 
@@ -546,14 +547,14 @@ class JarvisUI:
         # ── Profile selector ─────────────────────────────────────────
         active_pid = get_active_profile_id()
         profiles = sorted(set(list_profiles() + [active_pid]))
-        pid_var = tk.StringVar(value=str(active_pid))
+        pid_var = tk.StringVar(value=f"Profile {active_pid}")
 
         tk.Label(dialog, text="PROFILE", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
 
         pid_row = tk.Frame(dialog, bg=C_BG)
         pid_row.pack(pady=(0, 2))
 
-        pid_menu = tk.OptionMenu(pid_row, pid_var, *[str(p) for p in profiles])
+        pid_menu = tk.OptionMenu(pid_row, pid_var, *[f"Profile {p}" for p in profiles])
         pid_menu.configure(
             bg=C_BG,
             fg=C_PRI,
@@ -570,14 +571,15 @@ class JarvisUI:
             m = pid_menu["menu"]
             m.delete(0, "end")
             for p in profiles:
-                m.add_command(label=str(p), command=lambda v=str(p): pid_var.set(v))
+                label = f"Profile {p}"
+                m.add_command(label=label, command=lambda v=label: pid_var.set(v))
 
         def _new_profile():
             pid = create_profile()
             profiles.append(pid)
             profiles.sort()
             _refresh_pid_menu()
-            pid_var.set(str(pid))
+            pid_var.set(f"Profile {pid}")
 
         tk.Button(
             pid_row,
@@ -795,7 +797,7 @@ class JarvisUI:
                 set_gemini_key(k)
 
             try:
-                new_pid = int(pid_var.get())
+                new_pid = int(pid_var.get().replace("Profile ", ""))
             except Exception:
                 new_pid = active_pid
 
