@@ -10,8 +10,14 @@ def get_base_dir() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-BASE_DIR    = get_base_dir()
-MEMORY_PATH = BASE_DIR / "memory" / "long_term.json"
+BASE_DIR = get_base_dir()
+
+from core.profile_store import ensure_profile_dirs, get_active_profile_id
+
+PROFILE_ROOT = ensure_profile_dirs(get_active_profile_id())
+MEM_DIR = PROFILE_ROOT / "memory"
+MEMORY_PATH = MEM_DIR / "long_term.json"
+LEGACY_MEMORY_PATH = BASE_DIR / "memory" / "long_term.json"
 _lock       = Lock()
 
 MAX_VALUE_LENGTH = 300  
@@ -24,7 +30,23 @@ def _empty_memory() -> dict:
         "notes":         {}
     }
 
+def _migrate_legacy_memory_if_needed() -> None:
+    # Move legacy memory/long_term.json into profile 0 if profile 0 memory missing
+    try:
+        dst = ensure_profile_dirs(0) / "memory" / "long_term.json"
+        if dst.exists():
+            return
+        if not LEGACY_MEMORY_PATH.exists():
+            return
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text(LEGACY_MEMORY_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def load_memory() -> dict:
+    _migrate_legacy_memory_if_needed()
+
     if not MEMORY_PATH.exists():
         return _empty_memory()
 
