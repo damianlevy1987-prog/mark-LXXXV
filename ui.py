@@ -357,7 +357,12 @@ class JarvisUI:
         self.status_text = "ONLINE"
 
     def choose_profile(self):
-        """Startup profile picker. Sets active profile id in config/profile_state.json."""
+        """Startup profile picker. Sets active profile id in config/profile_state.json.
+
+        Headless/automation escape hatch:
+        - If env `MARK_PROFILE_ID` set to int, select it and skip modal.
+        - If UI cannot be shown (e.g. no display), fall back to current active profile.
+        """
         try:
             from core.profile_store import (
                 create_profile,
@@ -368,12 +373,30 @@ class JarvisUI:
         except Exception:
             return
 
+        # Non-interactive override
+        try:
+            forced = os.getenv("MARK_PROFILE_ID")
+            if forced is not None and forced.strip().isdigit():
+                set_active_profile_id(int(forced.strip()))
+                return
+        except Exception:
+            pass
+
         profiles = list_profiles()
         if 0 not in profiles:
             profiles = [0] + profiles
         active = get_active_profile_id()
 
-        dialog = tk.Toplevel(self.root)
+        try:
+            dialog = tk.Toplevel(self.root)
+        except Exception:
+            # Headless / Tk not ready
+            try:
+                set_active_profile_id(active)
+            except Exception:
+                pass
+            return
+
         dialog.title("Select Profile")
         dialog.configure(bg=C_BG)
         dialog.resizable(False, False)
