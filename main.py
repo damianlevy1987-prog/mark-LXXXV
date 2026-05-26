@@ -17,7 +17,19 @@ import traceback
 
 from pathlib import Path
 
-import pyaudio
+try:
+    import pyaudio
+except ModuleNotFoundError:
+    print(
+        "Missing dependency: pyaudio.\n\n"
+        "Install: pip install -r requirements.txt\n"
+        "If install fails, you likely need PortAudio dev libs:\n"
+        "  - Windows: pip install pipwin && pipwin install pyaudio\n"
+        "  - macOS: brew install portaudio\n"
+        "  - Debian/Ubuntu: sudo apt-get install portaudio19-dev\n"
+    )
+    raise
+
 from google import genai
 from google.genai import types
 
