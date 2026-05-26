@@ -712,9 +712,12 @@ class JarvisUI:
 
         # ── CAMERA INDEX ──────────────────────────────────────────────
         tk.Label(dialog, text="CAMERA INDEX", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
+        cam_row = tk.Frame(dialog, bg=C_BG)
+        cam_row.pack(pady=(0, 2))
+
         cam_var = tk.StringVar(value=str(s.get("camera_index", "")))
         tk.Entry(
-            dialog,
+            cam_row,
             textvariable=cam_var,
             width=10,
             fg=C_TEXT,
@@ -722,7 +725,37 @@ class JarvisUI:
             insertbackground=C_TEXT,
             borderwidth=0,
             font=("Courier", 10),
-        ).pack()
+        ).pack(side="left", padx=(0, 6))
+
+        def _detect_cameras():
+            try:
+                import cv2
+                found = []
+                for i in range(10):
+                    cap = cv2.VideoCapture(i, cv2.CAP_V4L2)
+                    if cap.isOpened():
+                        found.append(str(i))
+                        cap.release()
+                if found:
+                    cam_var.set(found[0])
+                else:
+                    cam_var.set("")
+                    print("[UI] No cameras detected.")
+            except Exception:
+                cam_var.set("")
+
+        tk.Button(
+            cam_row,
+            text="▸ DETECT",
+            command=_detect_cameras,
+            bg=C_BG,
+            fg=C_PRI,
+            activebackground=C_DIM,
+            font=("Courier", 9),
+            borderwidth=0,
+            pady=4,
+            padx=10,
+        ).pack(side="left")
 
         tk.Label(dialog, text="GEMINI API KEY", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
         key_var = tk.StringVar(value="")
