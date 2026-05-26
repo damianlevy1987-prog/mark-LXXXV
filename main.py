@@ -965,7 +965,7 @@ class JarvisLive:
 
         while True:
             try:
-                print("[JARVIS] 🔌 Connecting...")
+                print("[JARVIS] 🔌 Connecting...", flush=True)
                 config = self._build_config()
 
                 async with (
@@ -977,7 +977,7 @@ class JarvisLive:
                     self.audio_in_queue = asyncio.Queue()
                     self.out_queue      = asyncio.Queue(maxsize=10)
 
-                    print("[JARVIS] ✅ Connected.")
+                    print("[JARVIS] ✅ Connected.", flush=True)
                     self.ui.write_log("JARVIS online.")
 
                     tg.create_task(self._send_realtime())
@@ -1245,6 +1245,7 @@ def main():
     ui.set_jarvis(jarvis)
 
     def runner():
+        sys.stdout.flush()  # ensure any buffered output appears before UI blocks
         # Import once from env -> keyring if keyring empty (keyring is source-of-truth)
         # Runs after profile selection so secrets are scoped correctly.
         import_from_env_once(AUTO_IMPORT_VARS)

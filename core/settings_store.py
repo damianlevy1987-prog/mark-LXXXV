@@ -262,7 +262,11 @@ def load_settings() -> dict:
 def save_settings(patch: dict) -> dict:
     store = load_store()
     store_settings = store.get("settings", {})
-    store_settings.update(patch)
+    for k, v in patch.items():
+        if v is None:
+            store_settings.pop(k, None)
+        else:
+            store_settings[k] = v
     store["settings"] = store_settings
     save_store(store)
     return store_settings
