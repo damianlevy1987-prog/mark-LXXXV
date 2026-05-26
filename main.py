@@ -551,6 +551,11 @@ TOOL_DECLARATIONS = [
 
 ]
 
+
+class ReconnectRequested(Exception):
+    """Control-flow exception to trigger reconnect without noisy stack traces."""
+
+
 class JarvisLive:
 
     def __init__(self, ui: JarvisUI):
@@ -779,6 +784,8 @@ class JarvisLive:
                         stream.read, CHUNK_SIZE, exception_on_overflow=False
                     )
                     await self.out_queue.put({"data": data, "mime_type": "audio/pcm"})
+            except asyncio.CancelledError:
+                raise
             except Exception as e:
                 print(f"[JARVIS] ❌ Mic error: {e}")
                 raise
@@ -809,6 +816,8 @@ class JarvisLive:
             while True:
                 data = await asyncio.to_thread(q.get)
                 await self.out_queue.put({"data": data, "mime_type": "audio/pcm"})
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             print(f"[JARVIS] ❌ Mic error (sounddevice): {e}")
             raise
@@ -878,6 +887,8 @@ class JarvisLive:
                             function_responses=fn_responses
                         )
 
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             print(f"[JARVIS] ❌ Recv error: {e}")
             traceback.print_exc()
@@ -898,6 +909,8 @@ class JarvisLive:
                 while True:
                     chunk = await self.audio_in_queue.get()
                     await asyncio.to_thread(stream.write, chunk)
+            except asyncio.CancelledError:
+                raise
             except Exception as e:
                 print(f"[JARVIS] ❌ Play error: {e}")
                 raise
@@ -932,6 +945,8 @@ class JarvisLive:
                 chunk = await self.audio_in_queue.get()
                 # chunk already bytes (pcm)
                 await asyncio.to_thread(q.put, bytes(chunk))
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             print(f"[JARVIS] ❌ Play error (sounddevice): {e}")
             raise
@@ -976,11 +991,21 @@ class JarvisLive:
                             await asyncio.sleep(0.1)
                             if self._reconnect_requested.is_set():
                                 self._reconnect_requested.clear()
-                                raise RuntimeError("Reconnect requested")
+                                raise ReconnectRequested()
 
                     tg.create_task(_watch_reconnect())
 
             except Exception as e:
+                # TaskGroup errors may arrive as ExceptionGroup
+                if isinstance(e, BaseExceptionGroup):
+                    if any(isinstance(x, ReconnectRequested) for x in e.exceptions):
+                        print("[JARVIS] 🔄 Reconnect requested.")
+                        continue
+
+                if isinstance(e, ReconnectRequested):
+                    print("[JARVIS] 🔄 Reconnect requested.")
+                    continue
+
                 print(f"[JARVIS] ⚠️ Error: {e}")
                 traceback.print_exc()
 
