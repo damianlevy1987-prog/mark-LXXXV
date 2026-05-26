@@ -7,6 +7,7 @@
 # Text input bar: attached to existing Tkinter window without modifying ui.py.
 # Thread-safe queue bridges Tkinter main thread ↔ asyncio session thread.
 
+import argparse
 import asyncio
 import json
 import queue
@@ -1145,6 +1146,12 @@ def _attach_text_input(ui, jarvis) -> None:
     print("[UI] ⌨ Text input bar ready (Ctrl+T to toggle)")
 
 
+def _parse_args():
+    p = argparse.ArgumentParser(add_help=True)
+    p.add_argument("--profile", type=int, default=None, help="Active profile id (numeric)")
+    return p.parse_args()
+
+
 def main():
     # ── DPI: force Windows to report physical pixels before Tk init ──
     try:
@@ -1153,7 +1160,18 @@ def main():
     except Exception:
         pass
 
-    ui   = JarvisUI("face.png")
+    args = _parse_args()
+    if args.profile is not None:
+        from core.profile_store import set_active_profile_id
+        set_active_profile_id(args.profile)
+
+    try:
+        ui = JarvisUI("face.png")
+    except Exception as e:
+        print("Failed to start UI (Tkinter).")
+        print("If running headless, set DISPLAY / run desktop session.")
+        raise
+
     root = ui.root
 
     # ── Window fix ───────────────────────────────────────────────────
