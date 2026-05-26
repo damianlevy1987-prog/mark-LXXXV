@@ -544,6 +544,10 @@ class JarvisUI:
 
         s = load_settings()
 
+        def _sep():
+            f = tk.Frame(dialog, bg=C_DIM, height=1)
+            f.pack(fill="x", padx=20, pady=(14, 4))
+
         # ── Profile selector ─────────────────────────────────────────
         active_pid = get_active_profile_id()
         profiles = sorted(set(list_profiles() + [active_pid]))
@@ -627,8 +631,10 @@ class JarvisUI:
         )
         reconnect_btn.pack(pady=(8, 4))
 
+        _sep()
+
         # ── Browser picker ────────────────────────────────────────────
-        tk.Label(dialog, text="BROWSER", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
+        tk.Label(dialog, text="BROWSER", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(8, 2))
 
         browser_row = tk.Frame(dialog, bg=C_BG)
         browser_row.pack(pady=(0, 2))
@@ -712,8 +718,10 @@ class JarvisUI:
 
         browser_var.trace_add("write", _on_browser_change)
 
+        _sep()
+
         # ── CAMERA INDEX ──────────────────────────────────────────────
-        tk.Label(dialog, text="CAMERA INDEX", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
+        tk.Label(dialog, text="CAMERA INDEX", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(8, 2))
         cam_row = tk.Frame(dialog, bg=C_BG)
         cam_row.pack(pady=(0, 2))
 
@@ -759,7 +767,9 @@ class JarvisUI:
             padx=10,
         ).pack(side="left")
 
-        tk.Label(dialog, text="GEMINI API KEY", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
+        _sep()
+
+        tk.Label(dialog, text="GEMINI API KEY", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(8, 2))
         key_var = tk.StringVar(value="")
         tk.Entry(
             dialog,
@@ -812,12 +822,13 @@ class JarvisUI:
 
         tk.Button(
             dialog,
-            text="SAVE",
+            text="▸  SAVE",
             command=_save,
             bg=C_BG,
             fg=C_PRI,
             activebackground="#003344",
             font=("Courier", 10),
             borderwidth=0,
-            pady=8,
-        ).pack(pady=16)
+            pady=10,
+            padx=20,
+        ).pack(pady=(16, 8))
