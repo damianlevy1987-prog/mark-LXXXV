@@ -1,4 +1,4 @@
-pyaudio
+# Cross-platform deps
 sounddevice
 google-genai
 pillow
@@ -10,7 +10,13 @@ opencv-python
 mss
 psutil
 send2trash
-comtypes
-pycaw
-win10toast
-wmi
+
+# Windows-only deps (safe to install on Windows; skipped elsewhere)
+comtypes; platform_system == "Windows"
+pycaw; platform_system == "Windows"
+win10toast; platform_system == "Windows"
+wmi; platform_system == "Windows"
+
+# Optional audio backend (requires PortAudio headers on Linux/macOS)
+# Install manually if you want PyAudio specifically:
+#   pip install pyaudio
