@@ -47,13 +47,16 @@ def get_base_dir() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-BASE_DIR        = get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
+BASE_DIR = get_base_dir()
+
+from core.settings_store import get_gemini_key, load_settings, save_settings
 
 
 def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+    key = get_gemini_key()
+    if not key:
+        raise ValueError("Gemini API key not configured")
+    return key
 
 
 def _to_jpeg(img_bytes: bytes) -> bytes:
@@ -81,10 +84,9 @@ def _capture_screen() -> bytes:
 
 
 def _get_camera_index() -> int:
-    """Reads saved camera index from config, or auto-detects."""
+    """Reads saved camera index from settings, or auto-detects."""
     try:
-        with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
+        cfg = load_settings()
         if "camera_index" in cfg:
             return int(cfg["camera_index"])
     except Exception:
@@ -107,13 +109,7 @@ def _get_camera_index() -> int:
                 break
 
     try:
-        cfg = {}
-        if API_CONFIG_PATH.exists():
-            with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-        cfg["camera_index"] = best
-        with open(API_CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=4)
+        save_settings({"camera_index": best})
     except Exception:
         pass
 

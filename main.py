@@ -35,9 +35,10 @@ def get_base_dir():
     return Path(__file__).resolve().parent
 
 
-BASE_DIR        = get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
-PROMPT_PATH     = BASE_DIR / "core" / "prompt.txt"
+BASE_DIR    = get_base_dir()
+PROMPT_PATH = BASE_DIR / "core" / "prompt.txt"
+
+from core.settings_store import get_gemini_key, load_settings, save_settings
 
 # ─────────────────────────────────────────────────────────────
 # AUDIO CONFIG
@@ -57,8 +58,10 @@ pya = pyaudio.PyAudio()
 # ─────────────────────────────────────────────────────────────
 
 def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+    key = get_gemini_key()
+    if not key:
+        raise ValueError("Gemini API key not configured")
+    return key
 
 
 def _load_system_prompt() -> str:

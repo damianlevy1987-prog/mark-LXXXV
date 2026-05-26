@@ -5,6 +5,13 @@ from PIL import Image, ImageTk, ImageDraw
 import sys
 from pathlib import Path
 
+from core.settings_store import (
+    is_configured,
+    load_settings,
+    save_settings,
+    set_gemini_key,
+)
+
 
 def get_base_dir():
     if getattr(sys, "frozen", False):
@@ -96,6 +103,9 @@ class JarvisUI:
         self._api_key_ready = self._api_keys_exist()
         if not self._api_key_ready:
             self._show_setup_ui()
+
+        # Settings modal hotkey
+        self.root.bind_all("<Control-comma>", lambda e: self.open_settings_modal())
 
         self._animate()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -344,11 +354,12 @@ class JarvisUI:
         self.status_text = "ONLINE"
 
     def _api_keys_exist(self):
-        return API_FILE.exists()
+        return is_configured()
 
     def wait_for_api_key(self):
         """Block until API key is saved (called from main thread before starting JARVIS)."""
         while not self._api_key_ready:
+            self._api_key_ready = self._api_keys_exist()
             time.sleep(0.1)
 
     def _show_setup_ui(self):
@@ -383,10 +394,84 @@ class JarvisUI:
         gemini = self.gemini_entry.get().strip()
         if not gemini:
             return
-        os.makedirs(CONFIG_DIR, exist_ok=True)
-        with open(API_FILE, "w", encoding="utf-8") as f:
-            json.dump({"gemini_api_key": gemini}, f, indent=4)
+        set_gemini_key(gemini)
         self.setup_frame.destroy()
         self._api_key_ready = True
         self.status_text = "ONLINE"
         self.write_log("SYS: Systems initialised. JARVIS online.")
+
+    def open_settings_modal(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Settings")
+        dialog.configure(bg=C_BG)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+
+        s = load_settings()
+
+        tk.Label(dialog, text="BROWSER", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
+        browser_var = tk.StringVar(value=str(s.get("browser", "")))
+        tk.Entry(
+            dialog,
+            textvariable=browser_var,
+            width=40,
+            fg=C_TEXT,
+            bg="#000d12",
+            insertbackground=C_TEXT,
+            borderwidth=0,
+            font=("Courier", 10),
+        ).pack()
+
+        tk.Label(dialog, text="CAMERA INDEX", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
+        cam_var = tk.StringVar(value=str(s.get("camera_index", "")))
+        tk.Entry(
+            dialog,
+            textvariable=cam_var,
+            width=10,
+            fg=C_TEXT,
+            bg="#000d12",
+            insertbackground=C_TEXT,
+            borderwidth=0,
+            font=("Courier", 10),
+        ).pack()
+
+        tk.Label(dialog, text="GEMINI API KEY", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
+        key_var = tk.StringVar(value="")
+        tk.Entry(
+            dialog,
+            textvariable=key_var,
+            width=40,
+            fg=C_TEXT,
+            bg="#000d12",
+            insertbackground=C_TEXT,
+            borderwidth=0,
+            font=("Courier", 10),
+            show="*",
+        ).pack()
+
+        def _save():
+            patch = {}
+            b = browser_var.get().strip()
+            if b:
+                patch["browser"] = b
+            ci = cam_var.get().strip()
+            if ci.isdigit():
+                patch["camera_index"] = int(ci)
+            if patch:
+                save_settings(patch)
+            k = key_var.get().strip()
+            if k:
+                set_gemini_key(k)
+            dialog.destroy()
+
+        tk.Button(
+            dialog,
+            text="SAVE",
+            command=_save,
+            bg=C_BG,
+            fg=C_PRI,
+            activebackground="#003344",
+            font=("Courier", 10),
+            borderwidth=0,
+            pady=8,
+        ).pack(pady=16)

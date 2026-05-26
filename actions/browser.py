@@ -71,13 +71,16 @@ def get_base_dir() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-BASE_DIR        = get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
+BASE_DIR = get_base_dir()
+
+from core.settings_store import get_gemini_key, load_settings, save_settings
 
 
 def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+    key = get_gemini_key()
+    if not key:
+        raise ValueError("Gemini API key not configured")
+    return key
 
 
 # ─────────────────────────────────────────────────────────────
@@ -196,21 +199,14 @@ def detect_installed_browsers() -> list[dict]:
 
 def get_browser_preference() -> str | None:
     try:
-        with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f).get("browser")
+        return load_settings().get("browser")
     except Exception:
         return None
 
 
 def set_browser_preference(name: str):
     try:
-        cfg = {}
-        if API_CONFIG_PATH.exists():
-            with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-        cfg["browser"] = name
-        with open(API_CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=4)
+        save_settings({"browser": name})
         print(f"[Browser] 💾 Preference saved: {name}")
     except Exception as e:
         print(f"[Browser] ⚠️ Could not save preference: {e}")

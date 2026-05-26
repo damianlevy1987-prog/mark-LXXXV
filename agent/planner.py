@@ -15,8 +15,9 @@ def get_base_dir() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-BASE_DIR        = get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
+BASE_DIR = get_base_dir()
+
+from core.settings_store import get_gemini_key
 
 
 PLANNER_PROMPT = """You are the planning module of JARVIS, a personal AI assistant.
@@ -535,8 +536,10 @@ RULES:
 
 
 def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+    key = get_gemini_key()
+    if not key:
+        raise ValueError("Gemini API key not configured")
+    return key
 
 
 def _extract_retry_delay(error_str: str) -> int:

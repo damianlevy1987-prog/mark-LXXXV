@@ -37,8 +37,9 @@ def get_base_dir():
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
 
-BASE_DIR        = get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
+BASE_DIR = get_base_dir()
+
+from core.settings_store import get_gemini_key, load_settings, save_settings
 
 LIVE_MODEL          = "models/gemini-2.5-flash-native-audio-preview-12-2025"
 FORMAT              = pyaudio.paInt16
@@ -62,15 +63,10 @@ SYSTEM_PROMPT = (
 
 
 def _get_api_key() -> str:
-    try:
-        with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-            keys = json.load(f)
-        key = keys.get("gemini_api_key", "")
-        if not key:
-            raise ValueError("gemini_api_key not found")
-        return key
-    except Exception as e:
-        raise RuntimeError(f"Could not load API key: {e}")
+    key = get_gemini_key()
+    if not key:
+        raise RuntimeError("Gemini API key not configured")
+    return key
 
 
 def _get_camera_index() -> int:
@@ -80,8 +76,7 @@ def _get_camera_index() -> int:
     Runs only once — after that, config value is used directly.
     """
     try:
-        with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
+        cfg = load_settings()
         if "camera_index" in cfg:
             return int(cfg["camera_index"])
     except Exception:
@@ -110,14 +105,8 @@ def _get_camera_index() -> int:
             print(f"[Camera] ⚠️  Index {idx}: no valid frame (black or empty).")
 
     try:
-        cfg = {}
-        if API_CONFIG_PATH.exists():
-            with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-        cfg["camera_index"] = best_index
-        with open(API_CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=4)
-        print(f"[Camera] 💾 Camera index {best_index} saved to config.")
+        save_settings({"camera_index": best_index})
+        print(f"[Camera] 💾 Camera index {best_index} saved to settings.")
     except Exception as e:
         print(f"[Camera] ⚠️  Could not save camera index: {e}")
 
