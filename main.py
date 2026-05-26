@@ -61,6 +61,7 @@ BASE_DIR    = get_base_dir()
 PROMPT_PATH = BASE_DIR / "core" / "prompt.txt"
 
 from core.settings_store import get_gemini_key, load_settings, save_settings
+from core.secrets_store import import_from_env_once
 
 # ─────────────────────────────────────────────────────────────
 # AUDIO CONFIG
@@ -78,6 +79,21 @@ pya = pyaudio.PyAudio() if _HAVE_PYAUDIO else None
 # ─────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────
+
+AUTO_IMPORT_VARS = [
+    "GEMINI_API_KEY",
+    "OPENAI_API_KEY",
+    "OPENROUTER_API_KEY",
+    "GROQ_API_KEY",
+    "TELEGRAM_BOT_TOKEN",
+    "GITHUB_PAT",
+    "GITHUB_CLIENT_SECRET",
+    "CAPTCHA_SECRET",
+]
+
+# Import once from env -> keyring if keyring empty (keyring is source-of-truth)
+import_from_env_once(AUTO_IMPORT_VARS)
+
 
 def _get_api_key() -> str:
     key = get_gemini_key()
