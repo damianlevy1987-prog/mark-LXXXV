@@ -16,10 +16,33 @@ This fork refactors the action layer from 15+ specialised tools into eight unive
 
 ## Installation
 
+### 1) Create venv + install deps
+
 ```bash
 git clone https://github.com/TheCommentGuy2/mark-LXXXV/
 cd mark-LXXXV
-python setup.py
+
+python -m venv .venv
+# Windows:
+#   .venv\Scripts\activate
+# macOS/Linux:
+#   source .venv/bin/activate
+
+python -m pip install -U pip
+python -m pip install -r requirements.txt
+```
+
+### 2) Windows extras (optional)
+
+If you want **PyAudio** (instead of the default `sounddevice` fallback) and Windows-only integrations:
+
+```bash
+python -m pip install -r requirements-windows.txt
+```
+
+### 3) Run
+
+```bash
 python main.py
 ```
 
