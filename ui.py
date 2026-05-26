@@ -533,6 +533,7 @@ class JarvisUI:
             list_profiles,
             set_active_profile_id,
         )
+        from actions.browser import detect_installed_browsers, get_browser_preference, set_browser_preference
 
         dialog = tk.Toplevel(self.root)
         dialog.title("Settings")
@@ -624,20 +625,92 @@ class JarvisUI:
         )
         reconnect_btn.pack(pady=(8, 4))
 
-        # ── Existing settings fields ─────────────────────────────────
+        # ── Browser picker ────────────────────────────────────────────
         tk.Label(dialog, text="BROWSER", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
-        browser_var = tk.StringVar(value=str(s.get("browser", "")))
-        tk.Entry(
-            dialog,
-            textvariable=browser_var,
+
+        browser_row = tk.Frame(dialog, bg=C_BG)
+        browser_row.pack(pady=(0, 2))
+
+        detected = detect_installed_browsers()
+        browser_names = [b["name"] for b in detected if b["available"]]
+        browser_displays = {b["name"]: b["display"] for b in detected if b["available"]}
+
+        browser_options = ["(Auto-detect)"] + browser_names + ["(Custom path...)"]
+
+        current_pref = str(s.get("browser", ""))
+        if current_pref in browser_names:
+            browser_default = current_pref
+        elif current_pref:
+            browser_default = "(Custom path...)"
+        else:
+            browser_default = "(Auto-detect)"
+
+        browser_var = tk.StringVar(value=browser_default)
+
+        def _rebuild_browser_dropdown():
+            nb = detect_installed_browsers()
+            nb_names = [b["name"] for b in nb if b["available"]]
+            nb_displays = {b["name"]: b["display"] for b in nb if b["available"]}
+            menu = browser_menu["menu"]
+            menu.delete(0, "end")
+            for opt in ["(Auto-detect)"] + nb_names + ["(Custom path...)"]:
+                label = nb_displays.get(opt, opt)
+                menu.add_command(label=label, command=lambda v=opt: browser_var.set(v))
+
+        browser_menu = tk.OptionMenu(browser_row, browser_var, *browser_options)
+        browser_menu.configure(
+            bg=C_BG,
+            fg=C_PRI,
+            activebackground=C_DIM,
+            activeforeground=C_PRI,
+            highlightthickness=0,
+            borderwidth=0,
+            font=("Courier", 10),
+        )
+        browser_menu["menu"].configure(bg=C_BG, fg=C_PRI, activebackground=C_DIM, activeforeground=C_PRI)
+        browser_menu.pack(side="left", padx=(0, 6))
+
+        tk.Button(
+            browser_row,
+            text="↻",
+            command=_rebuild_browser_dropdown,
+            bg=C_BG,
+            fg=C_PRI,
+            activebackground=C_DIM,
+            font=("Courier", 10),
+            borderwidth=0,
+            padx=10,
+            pady=4,
+        ).pack(side="left")
+
+        custom_path_frame = tk.Frame(dialog, bg=C_BG)
+        custom_path_entry = tk.Entry(
+            custom_path_frame,
             width=40,
             fg=C_TEXT,
             bg="#000d12",
             insertbackground=C_TEXT,
             borderwidth=0,
             font=("Courier", 10),
-        ).pack()
+        )
+        custom_path_entry.pack()
 
+        if current_pref and current_pref not in browser_names:
+            custom_path_entry.insert(0, current_pref)
+            custom_path_frame.pack(pady=(4, 0))
+        else:
+            custom_path_frame.pack_forget()
+
+        def _on_browser_change(*_):
+            sel = browser_var.get()
+            if sel == "(Custom path...)":
+                custom_path_frame.pack(pady=(4, 0))
+            else:
+                custom_path_frame.pack_forget()
+
+        browser_var.trace_add("write", _on_browser_change)
+
+        # ── CAMERA INDEX ──────────────────────────────────────────────
         tk.Label(dialog, text="CAMERA INDEX", fg=C_DIM, bg=C_BG, font=("Courier", 9)).pack(pady=(12, 2))
         cam_var = tk.StringVar(value=str(s.get("camera_index", "")))
         tk.Entry(
@@ -670,7 +743,13 @@ class JarvisUI:
 
             patch = {}
             b = browser_var.get().strip()
-            if b:
+            if b == "(Auto-detect)":
+                patch["browser"] = ""
+            elif b == "(Custom path...)":
+                path = custom_path_entry.get().strip()
+                if path:
+                    patch["browser"] = path
+            elif b:
                 patch["browser"] = b
             ci = cam_var.get().strip()
             if ci.isdigit():
